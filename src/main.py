@@ -1,71 +1,36 @@
-from typing import List
+import json
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi_mcp import FastApiMCP
-from pydantic import BaseModel
+
+from src.router import calc, google_calendar, google_tasks
+
+app = FastAPI()
+
+app.include_router(google_tasks.router, prefix="/google_tasks")
+app.include_router(google_calendar.router, prefix="/google_calendar")
+app.include_router(calc.router, prefix="/calc")
+
+mcp = FastApiMCP(app)
+
+mcp.mount()
 
 
-class Student(BaseModel):
-    student_id: int
-    name: str
-    utme_score: int
-    subjects: List[str]
+@app.get("/status")
+def status():
+    return {"status": "ok"}
 
 
-STUDENTS_DB = {
-    1: Student(
-        student_id=1,
-        name="Chinedu Obi",
-        utme_score=285,
-        subjects=["Mathematics", "Physics", "Chemistry"],
-    ),
-    2: Student(
-        student_id=2,
-        name="Fatima Yusuf",
-        utme_score=310,
-        subjects=["Government", "Economics", "Literature"],
-    ),
-    3: Student(
-        student_id=3,
-        name="Tunde Adebayo",
-        utme_score=250,
-        subjects=["Mathematics", "Economics", "Geography"],
-    ),
-}
-
-app = FastAPI(
-    title="UTME Prep API",
-    description="API for accessing student data and past questions for the UTME exam.",
-)
+@app.get("/metadata")
+def metadata():
+    return {
+        "name": "Multi-tool MCP Server",
+        "description": "Tools for Google Tasks, Calendar, and Instagram",
+    }
 
 
-@app.get("/students/{student_id}", operation_id="get_student_by_id")
-async def get_student_by_id(student_id: int) -> Student:
-    """
-    Retrieves a student's profile by their unique ID.
-    """
-    student = STUDENTS_DB.get(student_id)
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-    return student
-
-
-@app.get("/subjects", operation_id="get_all_subjects")
-async def get_all_subjects():
-    """
-    Returns a list of all available subjects in the database.
-    """
-    all_subjects = set()
-    for student in STUDENTS_DB.values():
-        all_subjects.update(student.subjects)
-    return {"subjects": sorted(list(all_subjects))}
-
-
-mcp_server = FastApiMCP(
-    app,
-    name="UTME Prep Assistant",
-    description="A tool for an AI agent to interact with UTME student data.",
-    describe_full_response_schema=True,  # Describe the full response JSON-schema instead of just a response example
-    describe_all_responses=True,  # Describe all the possible responses instead of just the success (2XX) response
-)
-mcp_server.mount()
+@app.get("/openapi.json")
+def openapi():
+    with open(Path(__file__).parent / "openapi.json") as f:
+        return json.load(f)
